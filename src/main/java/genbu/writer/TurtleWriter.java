@@ -305,9 +305,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                 writer.write(";");
                 writer.writeEOL();
 
-                writer.decreaseIndentation();
                 writePredicate(pred);
-                writer.increaseIndentation();
                 wrapLine(true);
                 path.removeLast();
                 path.addLast(pred);
@@ -331,7 +329,6 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             lastWrittenPredicate = pred;
 
             statementClosed = false;
-            writer.increaseIndentation();
         }
 
         writeValue(obj, canShortenObjectBNode);
@@ -567,7 +564,6 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             writer.write(" .");
             writer.writeEOL();
             writer.decreaseIndentation();
-            writer.decreaseIndentation();
 
             stack.pollLast();
             path.pollLast();
@@ -603,7 +599,6 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                 writer.writeEOL();
             }
             writer.decreaseIndentation();
-            writer.decreaseIndentation();
             writer.write("]");
 
             stack.pollLast();
@@ -628,7 +623,6 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             writer.increaseIndentation();
 
             writePredicate(pred);
-            writer.increaseIndentation();
             wrapLine(true);
             path.addLast(pred);
             lastWrittenPredicate = pred;

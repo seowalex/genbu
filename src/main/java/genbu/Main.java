@@ -7,6 +7,7 @@ import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings;
+import genbu.writer.IndentationStyle;
 import genbu.writer.PrefixAlignment;
 import genbu.writer.TurtleWriter;
 
@@ -20,12 +21,20 @@ public class Main {
 
         writer.startRDF();
 
+        // ALIGN PREFIXES
+
         var maxPrefixWidth = model.getNamespaces().stream().map(Namespace::getPrefix)
                 .map(String::length).max(Integer::compare);
 
         writer.setPrefixAlignment(Optional.empty());
-        writer.setPrefixAlignment(maxPrefixWidth.map(PrefixAlignment.RIGHT::new));
-        writer.setPrefixAlignment(maxPrefixWidth.map(PrefixAlignment.LEFT::new));
+        writer.setPrefixAlignment(maxPrefixWidth.map(PrefixAlignment::RIGHT));
+        writer.setPrefixAlignment(maxPrefixWidth.map(PrefixAlignment::LEFT));
+
+        // INDENTATION STYLE
+
+        writer.setIndentationStyle(IndentationStyle.TAB);
+        writer.setIndentationStyle(IndentationStyle.SPACE(2));
+        writer.setIndentationStyle(IndentationStyle.SPACE(4));
 
         for (var nextNamespace : model.getNamespaces()) {
             writer.handleNamespace(nextNamespace.getPrefix(), nextNamespace.getName());

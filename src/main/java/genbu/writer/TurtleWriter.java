@@ -122,6 +122,10 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
         return settings;
     }
 
+    public void setIndentationStyle(IndentationStyle indentationStyle) {
+        writer.setIndentationString(indentationStyle.toString());
+    }
+
     public void setPrefixAlignment(Optional<PrefixAlignment> prefixAlignment) {
         this.prefixAlignment = prefixAlignment;
     }
@@ -143,7 +147,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             }
 
             if (prettyPrint) {
-                writer.setIndentationString("  ");
+                writer.setIndentationString(IndentationStyle.SPACE(4).toString());
             } else {
                 writer.setIndentationString("");
             }
@@ -302,7 +306,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                 writer.write(",");
                 wrapLine(prettyPrint);
             } else {
-                writer.write(";");
+                writer.write(" ;");
                 writer.writeEOL();
 
                 writePredicate(pred);

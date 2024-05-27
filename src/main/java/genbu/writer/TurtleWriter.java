@@ -119,6 +119,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
         settings.add(BasicWriterSettings.PRETTY_PRINT);
         settings.add(BasicWriterSettings.INLINE_BLANK_NODES);
         settings.add(TurtleWriterSettings.ABBREVIATE_NUMBERS);
+
         return settings;
     }
 
@@ -151,6 +152,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             } else {
                 writer.setIndentationString("");
             }
+
             if (baseIRI != null && getWriterConfig().get(BasicWriterSettings.BASE_DIRECTIVE)) {
                 writeBase(baseIRI.toString());
             }
@@ -173,9 +175,11 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
     @Override
     public void endRDF() throws RDFHandlerException {
         checkWritingStarted();
+
         synchronized (bufferLock) {
             processBuffer();
         }
+
         try {
             closePreviousStatement();
             writer.flush();
@@ -187,13 +191,12 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
     @Override
     public void handleNamespace(String prefix, String name) throws RDFHandlerException {
         checkWritingStarted();
+
         try {
             if (!namespaceTable.containsKey(name)) {
-
                 boolean isLegalPrefix = prefix.length() == 0 || TurtleUtil.isPN_PREFIX(prefix);
 
                 if (!isLegalPrefix || namespaceTable.containsValue(prefix)) {
-
                     if (prefix.length() == 0 || !isLegalPrefix) {
                         prefix = "ns";
                     }
@@ -231,6 +234,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
         if (isBuffering()) {
             synchronized (bufferLock) {
                 bufferedStatements.add(st);
+
                 if (bufferedStatements.size() >= this.bufferSize) {
                     processBuffer();
                 }
@@ -273,8 +277,10 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
 
             for (Resource s : Models.subjectBNodes(collection)) {
                 boolean firstFound = false, restFound = false;
+
                 for (Statement st : bufferedStatements.getStatements(s, null, null)) {
                     IRI pred = st.getPredicate();
+
                     if (pred.equals(RDF.FIRST)) {
                         if (!firstFound) {
                             firstFound = true;
@@ -292,6 +298,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                     }
                 }
             }
+
             return true;
         } catch (ModelException e) {
             return false;
@@ -301,6 +308,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
     protected void writeStatement(Resource subj, IRI pred, Value obj, Resource context,
             boolean canShortenSubjectBNode, boolean canShortenObjectBNode) throws IOException {
         closeHangingResource();
+
         if (subj.equals(lastWrittenSubject)) {
             if (pred.equals(lastWrittenPredicate)) {
                 writer.write(",");
@@ -322,6 +330,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             if (prettyPrint) {
                 writer.writeEOL();
             }
+
             writeResource(subj, canShortenSubjectBNode);
             wrapLine(true);
             writer.increaseIndentation();
@@ -341,11 +350,13 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
     @Override
     public void handleComment(String comment) throws RDFHandlerException {
         checkWritingStarted();
+
         try {
             closePreviousStatement();
 
             if (comment.indexOf('\r') != -1 || comment.indexOf('\n') != -1) {
                 StringTokenizer st = new StringTokenizer(comment, "\r\n");
+
                 while (st.hasMoreTokens()) {
                     writeCommentLine(st.nextToken());
                 }
@@ -427,18 +438,22 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
 
     protected void writeURI(IRI uri) throws IOException {
         String prefix = null;
+
         if (TurtleUtil.isValidPrefixedName(uri.getLocalName())) {
             prefix = namespaceTable.get(uri.getNamespace());
+
             if (prefix != null) {
                 writer.write(prefix);
                 writer.write(":");
                 writer.write(uri.getLocalName());
+
                 return;
             }
         }
 
         String uriString = uri.toString();
         int splitIdx = TurtleUtil.findURISplitIndex(uriString);
+
         if (splitIdx > 0) {
             String namespace = uriString.substring(0, splitIdx);
             prefix = namespaceTable.get(namespace);
@@ -467,6 +482,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
     protected void writeBNode(BNode bNode, boolean canShorten) throws IOException {
         if (canShorten) {
             writer.write("[]");
+
             return;
         }
 
@@ -478,6 +494,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                 throw new IOException(
                         "Cannot consistently write blank nodes with empty internal identifiers");
             }
+
             writer.write("genid-hash-");
             writer.write(Integer.toHexString(System.identityHashCode(bNode)));
         } else {
@@ -487,6 +504,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             } else {
                 writer.write(id.charAt(0));
             }
+
             for (int i = 1; i < id.length() - 1; i++) {
                 if (TurtleUtil.isPN_CHARS(id.charAt(i))) {
                     writer.write(id.charAt(i));
@@ -494,6 +512,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                     writer.write(Integer.toHexString(id.charAt(i)));
                 }
             }
+
             if (id.length() > 1) {
                 if (!TurtleUtil.isNameEndChar(id.charAt(id.length() - 1))) {
                     writer.write(Integer.toHexString(id.charAt(id.length() - 1)));
@@ -515,11 +534,13 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
         writeURI(triple.getPredicate());
         writer.write(" ");
         Value object = triple.getObject();
+
         if (object instanceof Literal) {
             writeLiteral((Literal) object);
         } else {
             writeResource((Resource) object, canShorten);
         }
+
         writer.write(">>");
     }
 
@@ -532,10 +553,12 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                     || XSD.DOUBLE.equals(datatype) || XSD.BOOLEAN.equals(datatype)) {
                 try {
                     String normalized = XMLDatatypeUtil.normalize(label, datatype);
+
                     if (!XMLDatatypeUtil.POSITIVE_INFINITY.equals(normalized)
                             && !XMLDatatypeUtil.NEGATIVE_INFINITY.equals(normalized)
                             && !XMLDatatypeUtil.NaN.equals(normalized)) {
                         writer.write(normalized);
+
                         return;
                     }
                 } catch (IllegalArgumentException e) {
@@ -564,6 +587,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
 
     protected void closePreviousStatement() throws IOException {
         closeNestedResources(null);
+
         if (!statementClosed) {
             writer.write(" .");
             writer.writeEOL();
@@ -587,21 +611,25 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
     private void closeHangingResource() throws IOException {
         if (isHanging()) {
             Value val = stack.pollLast();
+
             if (val instanceof Resource) {
                 writeResource((Resource) val, inlineBNodes);
             } else {
                 writeLiteral((Literal) val);
             }
+
             assert lastWrittenSubject.equals(stack.peekLast());
         }
     }
 
     private void closeNestedResources(Resource subj) throws IOException {
         closeHangingResource();
+
         while (stack.size() > 1 && !stack.peekLast().equals(subj)) {
             if (prettyPrint) {
                 writer.writeEOL();
             }
+
             writer.decreaseIndentation();
             writer.write("]");
 
@@ -616,14 +644,17 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             throws IOException {
         Resource subj = st.getSubject();
         IRI pred = st.getPredicate();
+
         if (isHanging() && subj.equals(stack.peekLast())) {
             lastWrittenSubject = subj;
             writer.write("[");
+
             if (prettyPrint && !RDF.TYPE.equals(pred)) {
                 writer.writeEOL();
             } else {
                 wrapLine(prettyPrint);
             }
+
             writer.increaseIndentation();
 
             writePredicate(pred);
@@ -661,6 +692,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             writeValue(st.getObject(), canInlineObjectBNode);
         } else {
             closeNestedResources(subj);
+
             if (rest && FIRST == lastWrittenPredicate) {
                 wrapLine(true);
                 path.removeLast();
@@ -672,6 +704,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                 writer.write(")");
                 path.removeLast();
                 path.addLast(REST);
+
                 while (REST == path.peekLast()) {
                     stack.pollLast();
                     path.pollLast();
@@ -703,6 +736,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                 Model contextData = bufferedStatements.filter(null, null, null, context);
                 Set<Resource> processedSubjects = new HashSet<>();
                 Optional<Resource> nextSubject = nextSubject(contextData, processedSubjects);
+
                 while (nextSubject.isPresent()) {
                     processSubject(contextData, nextSubject.get(), processedSubjects);
                     nextSubject = nextSubject(contextData, processedSubjects);
@@ -711,11 +745,13 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
         } else {
             Set<Resource> processedSubjects = new HashSet<>();
             Optional<Resource> nextSubject = nextSubject(bufferedStatements, processedSubjects);
+
             while (nextSubject.isPresent()) {
                 processSubject(bufferedStatements, nextSubject.get(), processedSubjects);
                 nextSubject = nextSubject(bufferedStatements, processedSubjects);
             }
         }
+
         bufferedStatements.clear();
     }
 
@@ -724,12 +760,15 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             if (processedSubjects.contains(subject)) {
                 continue;
             }
+
             if (subject.isBNode() && inlineBNodes) {
                 Set<Resource> otherSubjects = contextData.filter(null, null, subject).subjects();
+
                 if (otherSubjects.stream().anyMatch(s -> !processedSubjects.contains(s))) {
                     continue;
                 }
             }
+
             return Optional.of(subject);
         }
 
@@ -770,6 +809,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
                 processSubject(contextData, (BNode) st.getObject(), processedSubjects);
             }
         }
+
         processedPredicates.add(predicate);
     }
 
@@ -777,9 +817,11 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
         if (!inlineBNodes) {
             return false;
         }
+
         if (v instanceof BNode) {
             return (contextData.filter(null, null, v).size() <= 1);
         }
+
         return true;
     }
 

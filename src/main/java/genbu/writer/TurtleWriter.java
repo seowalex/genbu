@@ -80,6 +80,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
 
     private ModelFactory modelFactory = new LinkedHashModelFactory();
 
+    private IndentationStyle indentationStyle = IndentationStyle.SPACE(4);
     private Optional<PrefixAlignment> prefixAlignment = Optional.empty();
 
     public TurtleWriter(OutputStream out) {
@@ -124,7 +125,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
     }
 
     public void setIndentationStyle(IndentationStyle indentationStyle) {
-        writer.setIndentationString(indentationStyle.toString());
+        this.indentationStyle = indentationStyle;
     }
 
     public void setPrefixAlignment(Optional<PrefixAlignment> prefixAlignment) {
@@ -148,7 +149,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             }
 
             if (prettyPrint) {
-                writer.setIndentationString(IndentationStyle.SPACE(4).toString());
+                writer.setIndentationString(indentationStyle.toString());
             } else {
                 writer.setIndentationString("");
             }

@@ -29,21 +29,45 @@ import picocli.CommandLine.IVersionProvider;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+enum IndentationStyleValues {
+    space, tab
+}
+
+
+enum PrefixAlignmentValues {
+    left, right
+}
+
+
 @Command(name = "genbu", versionProvider = Main.ManifestVersionProvider.class,
         description = "A Turtle formatter", mixinStandardHelpOptions = true,
         usageHelpAutoWidth = true)
 public class Main implements Callable<Integer> {
     @Parameters(defaultValue = ".", paramLabel = "<files>",
-            description = "List of files or directories to format")
+            description = "List of files or directories to format [default: ${DEFAULT-VALUE}]")
     private Set<Path> paths;
+
+    @Option(names = {"-H", "--hidden"}, defaultValue = "true",
+            description = "Search hidden files and directories")
+    private boolean ignoreHidden;
 
     @Option(names = "--exclude", paramLabel = "<pattern>",
             description = "List of patterns, used to omit files and/or directories from analysis")
     private Set<String> excludedPatterns;
 
-    @Option(names = {"-H", "--hidden"}, defaultValue = "true",
-            description = "Search hidden files and directories")
-    private boolean ignoreHidden;
+    @Option(names = "--indentStyle", defaultValue = "space", paramLabel = "<style>",
+            description = """
+                    Note that when choosing TAB, alignPredicates and alignObjects are automatically treated as false.
+                    [default: ${DEFAULT-VALUE}] [possible values: ${COMPLETION-CANDIDATES}]""")
+    private IndentationStyleValues indentationStyle;
+
+    @Option(names = "--indentWidth", defaultValue = "2", paramLabel = "<width>",
+            description = "[default: ${DEFAULT-VALUE}]")
+    private int indentationWidth;
+
+    @Option(names = "--alignPrefixes", paramLabel = "<alignment>",
+            description = "Align @prefix statements [possible values: ${COMPLETION-CANDIDATES}]")
+    private Optional<PrefixAlignmentValues> prefixAlignment;
 
     @Override
     public Integer call() throws IOException {
@@ -86,20 +110,19 @@ public class Main implements Callable<Integer> {
             var writer = new TurtleWriter(System.out);
             writer.set(BasicWriterSettings.INLINE_BLANK_NODES, true);
 
-            // ALIGN PREFIXES
+            writer.setIndentationStyle(switch (indentationStyle) {
+                case space -> IndentationStyle.SPACE(indentationWidth);
+                case tab -> IndentationStyle.TAB;
+            });
 
             var maxPrefixWidth = model.getNamespaces().stream().map(Namespace::getPrefix)
                     .map(String::length).max(Integer::compare);
 
-            writer.setPrefixAlignment(Optional.empty());
-            writer.setPrefixAlignment(maxPrefixWidth.map(PrefixAlignment::RIGHT));
-            writer.setPrefixAlignment(maxPrefixWidth.map(PrefixAlignment::LEFT));
-
-            // INDENTATION STYLE
-
-            writer.setIndentationStyle(IndentationStyle.TAB);
-            writer.setIndentationStyle(IndentationStyle.SPACE(2));
-            writer.setIndentationStyle(IndentationStyle.SPACE(4));
+            writer.setPrefixAlignment(
+                    prefixAlignment.flatMap(alignment -> maxPrefixWidth.map(switch (alignment) {
+                        case left -> PrefixAlignment::LEFT;
+                        case right -> PrefixAlignment::RIGHT;
+                    })));
 
             // KEEP UNUSED PREFIXES / CHECK PREFIXES / SORT PREFIXES
 

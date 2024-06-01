@@ -48,7 +48,8 @@ enum PrefixAlignmentValues {
 
 @Command(name = "genbu", versionProvider = Main.ManifestVersionProvider.class,
         description = "A Turtle formatter", mixinStandardHelpOptions = true,
-        usageHelpAutoWidth = true)
+        usageHelpAutoWidth = true, abbreviateSynopsis = true, descriptionHeading = "%n",
+        parameterListHeading = "%nParameters:%n", optionListHeading = "%nOptions:%n")
 public class Main implements Callable<Integer> {
     @Parameters(defaultValue = ".", paramLabel = "<files>",
             description = "List of files or directories to format [default: ${DEFAULT-VALUE}]")

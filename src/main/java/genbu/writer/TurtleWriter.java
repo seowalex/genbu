@@ -82,6 +82,8 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
 
     private IndentationStyle indentationStyle = IndentationStyle.SPACE(4);
     private Optional<PrefixAlignment> prefixAlignment = Optional.empty();
+    private boolean firstPredicateInNewLine;
+    private boolean useRdfType;
 
     public TurtleWriter(OutputStream out) {
         this(out, null);
@@ -130,6 +132,14 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
 
     public void setPrefixAlignment(Optional<PrefixAlignment> prefixAlignment) {
         this.prefixAlignment = prefixAlignment;
+    }
+
+    public void setFirstPredicateInNewLine(boolean firstPredicateInNewLine) {
+        this.firstPredicateInNewLine = firstPredicateInNewLine;
+    }
+
+    public void setUseRdfType(boolean useRdfType) {
+        this.useRdfType = useRdfType;
     }
 
     @Override
@@ -337,6 +347,10 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
             writer.increaseIndentation();
             lastWrittenSubject = subj;
 
+            if (firstPredicateInNewLine) {
+                writer.writeEOL();
+            }
+
             writePredicate(pred);
             wrapLine(true);
             path.addLast(pred);
@@ -400,7 +414,7 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
 
     protected void writePredicate(IRI predicate) throws IOException {
         if (predicate.equals(RDF.TYPE)) {
-            writer.write("a");
+            writer.write(useRdfType ? "rdf:type" : "a");
         } else {
             writeURI(predicate);
         }

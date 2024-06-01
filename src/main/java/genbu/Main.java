@@ -88,6 +88,13 @@ public class Main implements Callable<Integer> {
             description = "Check namespaces for correct IRIs if they are part of the default namespaces")
     private boolean checkDefaultNamespaces;
 
+    @Option(names = "--firstPredicateInNewLine",
+            description = "Write first predicate in new line of block")
+    private boolean firstPredicateInNewLine;
+
+    @Option(names = "--useRdfType", description = "Use rdf:type instead of a")
+    private boolean useRdfType;
+
     @Override
     public Integer call() throws IOException {
         Set<Path> files = new HashSet<>();
@@ -185,6 +192,9 @@ public class Main implements Callable<Integer> {
                     }
                 }
             }
+
+            writer.setFirstPredicateInNewLine(firstPredicateInNewLine);
+            writer.setUseRdfType(useRdfType);
 
             writer.startRDF();
 

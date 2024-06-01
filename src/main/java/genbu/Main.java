@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,11 +16,14 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Namespace;
+import org.eclipse.rdf4j.model.impl.DynamicModel;
+import org.eclipse.rdf4j.model.impl.LinkedHashModelFactory;
 import org.eclipse.rdf4j.rio.ParserConfig;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.rio.helpers.BasicParserSettings;
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings;
+import org.eclipse.rdf4j.rio.helpers.StatementCollector;
 import genbu.writer.IndentationStyle;
 import genbu.writer.PrefixAlignment;
 import genbu.writer.TurtleWriter;
@@ -104,8 +108,12 @@ public class Main implements Callable<Integer> {
 
         for (var file : files) {
             var in = Files.newInputStream(file);
+            var parser = Rio.createParser(RDFFormat.TURTLE);
+            var model = new DynamicModel(new LinkedHashModelFactory());
 
-            var model = Rio.parse(in, RDFFormat.TURTLE);
+            parser.setRDFHandler(new StatementCollector(model));
+            parser.set(BasicParserSettings.NAMESPACES, Collections.emptySet());
+            parser.parse(in);
 
             var writer = new TurtleWriter(System.out);
             writer.set(BasicWriterSettings.INLINE_BLANK_NODES, true);

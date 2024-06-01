@@ -15,11 +15,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.model.impl.DynamicModel;
 import org.eclipse.rdf4j.model.impl.LinkedHashModelFactory;
+import org.eclipse.rdf4j.model.util.Namespaces;
 import org.eclipse.rdf4j.rio.RDFFormat;
+import org.eclipse.rdf4j.rio.RDFParseException;
 import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.rio.helpers.BasicParserSettings;
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings;
@@ -61,7 +64,7 @@ public class Main implements Callable<Integer> {
 
     @Option(names = "--indentStyle", defaultValue = "space", paramLabel = "<style>",
             description = """
-                    Note that when choosing TAB, alignPredicates and alignObjects are automatically treated as false.
+                    Note that when choosing tab, alignPredicates and alignObjects are automatically treated as false.
                     [default: ${DEFAULT-VALUE}] [possible values: ${COMPLETION-CANDIDATES}]""")
     private IndentationStyleValues indentationStyle;
 
@@ -79,6 +82,10 @@ public class Main implements Callable<Integer> {
 
     @Option(names = "--sortPrefixes", description = "Sort prefixes")
     private boolean sortPrefixes;
+
+    @Option(names = "--checkDefaultNamespaces",
+            description = "Check namespaces for correct IRIs if they are part of the default namespaces")
+    private boolean checkDefaultNamespaces;
 
     @Override
     public Integer call() throws IOException {
@@ -159,6 +166,24 @@ public class Main implements Callable<Integer> {
 
             var namespaces =
                     sortPrefixes ? new TreeSet<>(model.getNamespaces()) : model.getNamespaces();
+
+            if (checkDefaultNamespaces) {
+                var defaultNamespaces = Namespaces.DEFAULT_RDF4J.stream()
+                        .collect(Collectors.toMap(Namespace::getPrefix, Namespace::getName));
+
+                for (var namespace : model.getNamespaces()) {
+                    var prefix = namespace.getPrefix();
+                    var name = namespace.getName();
+                    var expectedName = defaultNamespaces.get(prefix);
+
+                    if (Optional.ofNullable(expectedName).map(iri -> !iri.equals(name))
+                            .orElse(false)) {
+                        throw new RDFParseException(
+                                "Expected namespace prefix '" + prefix + "' to be associated with '"
+                                        + expectedName + "', found '" + name + "'");
+                    }
+                }
+            }
 
             writer.startRDF();
 

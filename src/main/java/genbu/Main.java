@@ -13,12 +13,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.model.impl.DynamicModel;
 import org.eclipse.rdf4j.model.impl.LinkedHashModelFactory;
-import org.eclipse.rdf4j.rio.ParserConfig;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.rio.helpers.BasicParserSettings;
@@ -72,6 +72,13 @@ public class Main implements Callable<Integer> {
     @Option(names = "--alignPrefixes", paramLabel = "<alignment>",
             description = "Align @prefix statements [possible values: ${COMPLETION-CANDIDATES}]")
     private Optional<PrefixAlignmentValues> prefixAlignment;
+
+    @Option(names = "--keepUnusedPrefixes", defaultValue = "true",
+            description = "Keeps prefixes that are not part of any statement")
+    private boolean discardUnusedPrefixes;
+
+    @Option(names = "--sortPrefixes", description = "Sort prefixes")
+    private boolean sortPrefixes;
 
     @Override
     public Integer call() throws IOException {
@@ -132,31 +139,30 @@ public class Main implements Callable<Integer> {
                         case right -> PrefixAlignment::RIGHT;
                     })));
 
-            // KEEP UNUSED PREFIXES / CHECK PREFIXES / SORT PREFIXES
+            if (discardUnusedPrefixes) {
+                var namespaces = new LinkedHashSet<>(model.getNamespaces());
 
-            var namespaces = new LinkedHashSet<>(model.getNamespaces());
-
-            for (var statement : model) {
-                for (var component : List.of(statement.getSubject(), statement.getPredicate(),
-                        statement.getObject())) {
-                    if (component instanceof IRI iri) {
-                        namespaces.removeIf(
-                                namespace -> namespace.getName().equals(iri.getNamespace()));
+                for (var statement : model) {
+                    for (var component : List.of(statement.getSubject(), statement.getPredicate(),
+                            statement.getObject())) {
+                        if (component instanceof IRI iri) {
+                            namespaces.removeIf(
+                                    namespace -> namespace.getName().equals(iri.getNamespace()));
+                        }
                     }
+                }
+
+                for (var namespace : namespaces) {
+                    model.removeNamespace(namespace.getPrefix());
                 }
             }
 
-            for (var namespace : namespaces) {
-                model.removeNamespace(namespace.getPrefix());
-            }
-
-            System.out.println(new ParserConfig().get(BasicParserSettings.NAMESPACES));
-
-            //
+            var namespaces =
+                    sortPrefixes ? new TreeSet<>(model.getNamespaces()) : model.getNamespaces();
 
             writer.startRDF();
 
-            for (var namespace : model.getNamespaces()) {
+            for (var namespace : namespaces) {
                 writer.handleNamespace(namespace.getPrefix(), namespace.getName());
             }
 

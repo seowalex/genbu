@@ -23,11 +23,10 @@ import org.eclipse.rdf4j.model.impl.DynamicModel;
 import org.eclipse.rdf4j.model.impl.LinkedHashModelFactory;
 import org.eclipse.rdf4j.model.util.ModelException;
 import org.eclipse.rdf4j.model.util.Namespaces;
-import org.eclipse.rdf4j.rio.RDFFormat;
-import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.rio.helpers.BasicParserSettings;
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings;
 import org.eclipse.rdf4j.rio.helpers.StatementCollector;
+import genbu.parser.TurtleParser;
 import genbu.writer.IndentationStyle;
 import genbu.writer.PrefixAlignment;
 import genbu.writer.TurtleWriter;
@@ -155,7 +154,7 @@ public class Main implements Callable<Integer> {
         if (files.stream().map(file -> {
             try {
                 var in = Files.newInputStream(file);
-                var parser = Rio.createParser(RDFFormat.TURTLE);
+                var parser = new TurtleParser();
                 var model = new DynamicModel(new LinkedHashModelFactory());
 
                 parser.setRDFHandler(new StatementCollector(model));

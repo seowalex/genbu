@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -20,9 +21,9 @@ import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.model.impl.DynamicModel;
 import org.eclipse.rdf4j.model.impl.LinkedHashModelFactory;
+import org.eclipse.rdf4j.model.util.ModelException;
 import org.eclipse.rdf4j.model.util.Namespaces;
 import org.eclipse.rdf4j.rio.RDFFormat;
-import org.eclipse.rdf4j.rio.RDFParseException;
 import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.rio.helpers.BasicParserSettings;
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings;
@@ -32,9 +33,13 @@ import genbu.writer.PrefixAlignment;
 import genbu.writer.TurtleWriter;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.IExecutionExceptionHandler;
 import picocli.CommandLine.IVersionProvider;
+import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParseResult;
+import picocli.CommandLine.Spec;
 
 enum IndentationStyleValues {
     space, tab
@@ -95,125 +100,156 @@ public class Main implements Callable<Integer> {
     @Option(names = "--useRdfType", description = "Use rdf:type instead of a")
     private boolean useRdfType;
 
+    @Spec
+    CommandSpec spec;
+
     @Override
-    public Integer call() throws IOException {
+    public Integer call() {
         Set<Path> files = new HashSet<>();
         var excludedMatcher = Optional.ofNullable(excludedPatterns).map(patterns -> FileSystems
                 .getDefault().getPathMatcher("glob:{" + String.join(",", patterns) + "}"));
 
-        for (var path : paths) {
-            Files.walkFileTree(path.normalize(), new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
-                        throws IOException {
-                    if (ignoreHidden && Files.isHidden(dir)
-                            || excludedMatcher.map(matcher -> matcher.matches(dir)).orElse(false)) {
-                        return FileVisitResult.SKIP_SUBTREE;
-                    }
+        if (paths.stream().map(path -> {
+            try {
+                Files.walkFileTree(path.normalize(), new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
+                            throws IOException {
+                        if (ignoreHidden && Files.isHidden(dir) || excludedMatcher
+                                .map(matcher -> matcher.matches(dir)).orElse(false)) {
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
 
-                    return super.preVisitDirectory(dir, attrs);
-                };
+                        return super.preVisitDirectory(dir, attrs);
+                    };
 
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                        throws IOException {
-                    if (attrs.isRegularFile() && file.toString().endsWith(".ttl")
-                            && !(ignoreHidden && Files.isHidden(file)) && !excludedMatcher
-                                    .map(matcher -> matcher.matches(file)).orElse(false)) {
-                        files.add(file);
-                    }
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                            throws IOException {
+                        if (attrs.isRegularFile() && file.toString().endsWith(".ttl")
+                                && !(ignoreHidden && Files.isHidden(file)) && !excludedMatcher
+                                        .map(matcher -> matcher.matches(file)).orElse(false)) {
+                            files.add(file);
+                        }
 
-                    return super.visitFile(file, attrs);
-                };
-            });
+                        return super.visitFile(file, attrs);
+                    };
+                });
+
+                return false;
+            } catch (NoSuchFileException e) {
+                spec.commandLine().getErr().println(spec.commandLine().getColorScheme()
+                        .errorText(e.getFile() + ": No such file or directory"));
+
+                return true;
+            } catch (Exception e) {
+                spec.commandLine().getErr().println(spec.commandLine().getColorScheme()
+                        .errorText(path + ": " + e.getMessage()));
+
+                return true;
+            }
+        }).toList().contains(true)) {
+            return spec.exitCodeOnExecutionException();
         }
 
-        for (var file : files) {
-            var in = Files.newInputStream(file);
-            var parser = Rio.createParser(RDFFormat.TURTLE);
-            var model = new DynamicModel(new LinkedHashModelFactory());
+        if (files.stream().map(file -> {
+            try {
+                var in = Files.newInputStream(file);
+                var parser = Rio.createParser(RDFFormat.TURTLE);
+                var model = new DynamicModel(new LinkedHashModelFactory());
 
-            parser.setRDFHandler(new StatementCollector(model));
-            parser.set(BasicParserSettings.NAMESPACES, Collections.emptySet());
-            parser.parse(in);
+                parser.setRDFHandler(new StatementCollector(model));
+                parser.set(BasicParserSettings.NAMESPACES, Collections.emptySet());
+                parser.parse(in);
 
-            var writer = new TurtleWriter(System.out);
-            writer.set(BasicWriterSettings.INLINE_BLANK_NODES, true);
+                var writer = new TurtleWriter(System.out);
+                writer.set(BasicWriterSettings.INLINE_BLANK_NODES, true);
 
-            writer.setIndentationStyle(switch (indentationStyle) {
-                case space -> IndentationStyle.SPACE(indentationWidth);
-                case tab -> IndentationStyle.TAB;
-            });
+                writer.setIndentationStyle(switch (indentationStyle) {
+                    case space -> IndentationStyle.SPACE(indentationWidth);
+                    case tab -> IndentationStyle.TAB;
+                });
 
-            var maxPrefixWidth = model.getNamespaces().stream().map(Namespace::getPrefix)
-                    .map(String::length).max(Integer::compare);
+                var maxPrefixWidth = model.getNamespaces().stream().map(Namespace::getPrefix)
+                        .map(String::length).max(Integer::compare);
 
-            writer.setPrefixAlignment(
-                    prefixAlignment.flatMap(alignment -> maxPrefixWidth.map(switch (alignment) {
-                        case left -> PrefixAlignment::LEFT;
-                        case right -> PrefixAlignment::RIGHT;
-                    })));
+                writer.setPrefixAlignment(
+                        prefixAlignment.flatMap(alignment -> maxPrefixWidth.map(switch (alignment) {
+                            case left -> PrefixAlignment::LEFT;
+                            case right -> PrefixAlignment::RIGHT;
+                        })));
 
-            if (discardUnusedPrefixes) {
-                var namespaces = new LinkedHashSet<>(model.getNamespaces());
+                if (discardUnusedPrefixes) {
+                    var namespaces = new LinkedHashSet<>(model.getNamespaces());
 
-                for (var statement : model) {
-                    for (var component : List.of(statement.getSubject(), statement.getPredicate(),
-                            statement.getObject())) {
-                        if (component instanceof IRI iri) {
-                            namespaces.removeIf(
-                                    namespace -> namespace.getName().equals(iri.getNamespace()));
+                    for (var statement : model) {
+                        for (var component : List.of(statement.getSubject(),
+                                statement.getPredicate(), statement.getObject())) {
+                            if (component instanceof IRI iri) {
+                                namespaces.removeIf(namespace -> namespace.getName()
+                                        .equals(iri.getNamespace()));
+                            }
+                        }
+                    }
+
+                    for (var namespace : namespaces) {
+                        model.removeNamespace(namespace.getPrefix());
+                    }
+                }
+
+                var namespaces =
+                        sortPrefixes ? new TreeSet<>(model.getNamespaces()) : model.getNamespaces();
+
+                if (checkDefaultNamespaces) {
+                    var defaultNamespaces = Namespaces.DEFAULT_RDF4J.stream()
+                            .collect(Collectors.toMap(Namespace::getPrefix, Namespace::getName));
+
+                    for (var namespace : model.getNamespaces()) {
+                        var prefix = namespace.getPrefix();
+                        var name = namespace.getName();
+                        var expectedName = defaultNamespaces.get(prefix);
+
+                        if (Optional.ofNullable(expectedName).map(iri -> !iri.equals(name))
+                                .orElse(false)) {
+                            throw new ModelException("Expected namespace prefix '" + prefix
+                                    + "' to be associated with '" + expectedName + "', found '"
+                                    + name + "'");
                         }
                     }
                 }
 
+                writer.setFirstPredicateInNewLine(firstPredicateInNewLine);
+                writer.setUseRdfType(useRdfType);
+
+                writer.startRDF();
+
                 for (var namespace : namespaces) {
-                    model.removeNamespace(namespace.getPrefix());
+                    writer.handleNamespace(namespace.getPrefix(), namespace.getName());
                 }
-            }
 
-            var namespaces =
-                    sortPrefixes ? new TreeSet<>(model.getNamespaces()) : model.getNamespaces();
-
-            if (checkDefaultNamespaces) {
-                var defaultNamespaces = Namespaces.DEFAULT_RDF4J.stream()
-                        .collect(Collectors.toMap(Namespace::getPrefix, Namespace::getName));
-
-                for (var namespace : model.getNamespaces()) {
-                    var prefix = namespace.getPrefix();
-                    var name = namespace.getName();
-                    var expectedName = defaultNamespaces.get(prefix);
-
-                    if (Optional.ofNullable(expectedName).map(iri -> !iri.equals(name))
-                            .orElse(false)) {
-                        throw new RDFParseException(
-                                "Expected namespace prefix '" + prefix + "' to be associated with '"
-                                        + expectedName + "', found '" + name + "'");
-                    }
+                for (var statement : model) {
+                    writer.handleStatement(statement);
                 }
+
+                writer.endRDF();
+
+                return false;
+            } catch (Exception e) {
+                spec.commandLine().getErr().println(spec.commandLine().getColorScheme()
+                        .errorText(file + ": " + e.getMessage()));
+
+                return true;
             }
-
-            writer.setFirstPredicateInNewLine(firstPredicateInNewLine);
-            writer.setUseRdfType(useRdfType);
-
-            writer.startRDF();
-
-            for (var namespace : namespaces) {
-                writer.handleNamespace(namespace.getPrefix(), namespace.getName());
-            }
-
-            for (var statement : model) {
-                writer.handleStatement(statement);
-            }
-
-            writer.endRDF();
+        }).toList().contains(true)) {
+            return spec.exitCodeOnExecutionException();
         }
 
         return 0;
     }
 
     public static void main(String[] args) {
-        System.exit(new CommandLine(new Main()).execute(args));
+        System.exit(new CommandLine(new Main())
+                .setExecutionExceptionHandler(new PrintExceptionMessageHandler()).execute(args));
     }
 
     static class ManifestVersionProvider implements IVersionProvider {
@@ -222,6 +258,16 @@ public class Main implements Callable<Integer> {
             var version = getClass().getPackage().getImplementationVersion();
 
             return new String[] {"${ROOT-COMMAND-NAME} " + version};
+        }
+    }
+
+    static class PrintExceptionMessageHandler implements IExecutionExceptionHandler {
+        @Override
+        public int handleExecutionException(Exception ex, CommandLine commandLine,
+                ParseResult fullParseResult) {
+            commandLine.getErr().println(commandLine.getColorScheme().errorText(ex.getMessage()));
+
+            return commandLine.getCommandSpec().exitCodeOnExecutionException();
         }
     }
 }

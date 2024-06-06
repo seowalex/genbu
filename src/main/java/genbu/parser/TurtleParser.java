@@ -17,7 +17,6 @@ import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.Triple;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.util.Values;
@@ -64,7 +63,6 @@ public class TurtleParser extends AbstractRDFParser {
 	public Collection<RioSetting<?>> getSupportedSettings() {
 		Set<RioSetting<?>> result = new HashSet<>(super.getSupportedSettings());
 		result.add(TurtleParserSettings.CASE_INSENSITIVE_DIRECTIVES);
-		result.add(TurtleParserSettings.ACCEPT_TURTLESTAR);
 
 		return result;
 	}
@@ -494,10 +492,6 @@ public class TurtleParser extends AbstractRDFParser {
 	}
 
 	protected Value parseValue() throws IOException, RDFParseException, RDFHandlerException {
-		if (getParserConfig().get(TurtleParserSettings.ACCEPT_TURTLESTAR) && peekIsTripleValue()) {
-			return parseTripleValue();
-		}
-
 		int c = peekCodePoint();
 
 		if (c == '<') {
@@ -1172,48 +1166,6 @@ public class TurtleParser extends AbstractRDFParser {
 		} else {
 			throw new IllegalArgumentException("Invalid codepoint " + codePoint);
 		}
-	}
-
-	protected boolean peekIsTripleValue() throws IOException {
-		int c0 = readCodePoint();
-		int c1 = readCodePoint();
-		unread(c1);
-		unread(c0);
-
-		return c0 == '<' && c1 == '<';
-	}
-
-	protected Triple parseTripleValue() throws IOException {
-		verifyCharacterOrFail(readCodePoint(), "<");
-		verifyCharacterOrFail(readCodePoint(), "<");
-		skipWSC();
-		Value subject = parseValue();
-
-		if (subject instanceof Resource) {
-			skipWSC();
-			Value predicate = parseValue();
-
-			if (predicate instanceof IRI) {
-				skipWSC();
-				Value object = parseValue();
-
-				if (object != null) {
-					skipWSC();
-					verifyCharacterOrFail(readCodePoint(), ">");
-					verifyCharacterOrFail(readCodePoint(), ">");
-
-					return valueFactory.createTriple((Resource) subject, (IRI) predicate, object);
-				} else {
-					reportFatalError("Missing object in RDF-star triple");
-				}
-			} else {
-				reportFatalError("Illegal predicate value in RDF-star triple: " + predicate);
-			}
-		} else {
-			reportFatalError("Illegal subject val in RDF-star triple: " + subject);
-		}
-
-		return null;
 	}
 
 	protected void parseAnnotation() throws IOException {

@@ -205,10 +205,10 @@ public class TurtleWriter extends AbstractRDFWriter implements CharSink {
 
         try {
             if (!namespaceTable.containsKey(name)) {
-                boolean isLegalPrefix = prefix.length() == 0 || TurtleUtil.isPN_PREFIX(prefix);
+                boolean isLegalPrefix = prefix.isEmpty() || TurtleUtil.isPN_PREFIX(prefix);
 
                 if (!isLegalPrefix || namespaceTable.containsValue(prefix)) {
-                    if (prefix.length() == 0 || !isLegalPrefix) {
+                    if (prefix.isEmpty() || !isLegalPrefix) {
                         prefix = "ns";
                     }
 
